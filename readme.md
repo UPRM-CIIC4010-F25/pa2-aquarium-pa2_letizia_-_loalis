@@ -24,6 +24,8 @@ Grading
 ## Team Info
 | Student Number | Student Name | Student Email |
 |-|-|-|
+
+Letizia M. Mayor Pena 802238798 letizia.mayor@upr.edu 
 |(STUDENT NUMBER HERE)| (STUDENT NAME HERE)| (STUDENT EMAIL HERE) |
 |(STUDENT NUMBER HERE)| (STUDENT NAME HERE)| (STUDENT EMAIL HERE) |
 
