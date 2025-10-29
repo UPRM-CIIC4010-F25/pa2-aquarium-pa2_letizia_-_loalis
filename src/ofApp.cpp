@@ -54,6 +54,14 @@ void ofApp::setup(){
     ));
 
     ofSetLogLevel(OF_LOG_NOTICE); // Set default log level
+
+
+    backgroundMusic.load("sound/Yoshi_theme.wav");
+    backgroundMusic.setLoop(true);
+    backgroundMusic.setVolume(0.6f);
+    backgroundMusic.play();
+
+
 }
 
 //--------------------------------------------------------------
