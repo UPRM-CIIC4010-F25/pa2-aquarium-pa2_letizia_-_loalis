@@ -26,7 +26,7 @@ Grading
 |-|-|-|
 
 Letizia M. Mayor Pena 802238798 letizia.mayor@upr.edu 
-|(STUDENT NUMBER HERE)| (STUDENT NAME HERE)| (STUDENT EMAIL HERE) |
+|(802237534)| (Loalis M. Feliciano Medina)| (loalis.feliciano@upr.edu) |
 |(STUDENT NUMBER HERE)| (STUDENT NAME HERE)| (STUDENT EMAIL HERE) |
 
 ---
