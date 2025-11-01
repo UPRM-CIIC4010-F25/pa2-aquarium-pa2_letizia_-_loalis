@@ -1,5 +1,5 @@
 #define NOMINMAX // To avoid min/max macro conflict on Windows
-
+#pragma once
 #include <vector>
 #include <memory>
 #include <iostream>

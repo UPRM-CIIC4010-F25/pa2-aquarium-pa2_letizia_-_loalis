@@ -1,3 +1,4 @@
+#pragma once
 #include <iostream>
 #include <memory>
 #include <utility>
@@ -100,6 +101,7 @@ public:
     void setBounds(int w, int h);
     void normalize();
     void bounce();
+    void moveBy(float dx, float dy);
 };
 
 // GameEvents
