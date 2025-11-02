@@ -151,8 +151,7 @@ void NPCreature::move() {
 }
 
 void NPCreature::draw() const {
-    ofLogVerbose() << "NPCreature at (" << m_x << ", " << m_y << ") with speed " << m_speed << std::endl;
-    
+  
     
     if (m_creatureType == AquariumCreatureType::PowerUp) {
        
@@ -302,6 +301,7 @@ void Aquarium::update() {
             resolveBounce(A, B);
         }
     }
+    }
     
     // Spawn power-up every 20s
     m_powerUpTimer++;
@@ -312,8 +312,8 @@ void Aquarium::update() {
     }
     
     this->Repopulate();
+    }
 }
-
 
 void Aquarium::draw() const {
     for (const auto& creature : m_creatures) {
@@ -475,8 +475,8 @@ if (!updateControl.tick()) {
             m_aquarium->removeCreature(B);
             m_player->addToScore(1, B->getValue());
 
-            if (biteSound && biteSound->isLoaded()) {
-                biteSound->play();
+            if (biteSound.isLoaded()) {
+                biteSound.play();
             } else {
                 ofLogError("Sound") << "Bite sound not loaded!" << std::endl;
             }

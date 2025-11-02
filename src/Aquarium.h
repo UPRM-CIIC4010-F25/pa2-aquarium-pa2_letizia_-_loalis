@@ -136,6 +136,8 @@ public:
     void setBiteSound(ofSoundPlayer* s) { biteSound = s; }
     void setScorePtr(int* p) { scorePtr = p; }
 
+    
+    int m_powerUpTimer = 0;
 
 
 private:
@@ -147,7 +149,6 @@ private:
     std::vector<std::shared_ptr<Creature>> m_next_creatures;
     std::vector<std::shared_ptr<AquariumLevel>> m_aquariumlevels;
     std::shared_ptr<AquariumSpriteManager> m_sprite_manager;
-    int m_powerUpTimer = 0;
     
     ofSoundPlayer* biteSound = nullptr;  // sonido del "bite"
     int* scorePtr = nullptr;             // puntero al score global

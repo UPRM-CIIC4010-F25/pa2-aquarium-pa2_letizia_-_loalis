@@ -64,9 +64,12 @@ void ofApp::setup(){
     backgroundMusic.setVolume(0.6f);
     backgroundMusic.play(); 
 
-    biteSound.load("sound/Minecraft-eating.wav");
-    biteSound.setVolume(1.0f);
-    biteSound.setMultiPlay(true); // Allow overlapping bites
+    // Load bite sound
+    bool soundLoaded = biteSound.load("sound/Minecraft-Eating.wav");
+    if (soundLoaded) {
+        biteSound.setVolume(1.0f);
+        biteSound.setMultiPlay(true); 
+    }
 
     
 
@@ -139,6 +142,11 @@ void ofApp::keyPressed(int key){
                 case OF_KEY_RIGHT:
                 gameScene->GetPlayer()->setDirection(1, gameScene->GetPlayer()->isYDirectionActive()?gameScene->GetPlayer()->getDy():0);
                 gameScene->GetPlayer()->setFlipped(false);
+                break;
+            case ' ': 
+                if (biteSound.isLoaded()) {
+                    biteSound.play();
+                }
                 break;
             default:
                 break;
