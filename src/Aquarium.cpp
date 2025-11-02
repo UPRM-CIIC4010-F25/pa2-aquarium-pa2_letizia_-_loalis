@@ -2,6 +2,45 @@
 #include "Core.h"
 #include <cstdlib>
 
+// --- REBOTE SIMPLE SIN GHOST (solo con X/Y y collisionRadius) ---
+static inline void resolveBounce(std::shared_ptr<Creature> A,
+                                 std::shared_ptr<Creature> B)
+{
+    // Centros
+    float Ax = A->getX(), Ay = A->getY();
+    float Bx = B->getX(), By = B->getY();
+
+    // Radios (usa collisionRadius, que sí existe)
+    float rA = A->getCollisionRadius();
+    float rB = B->getCollisionRadius();
+    float rS = rA + rB;
+
+    float dx = Bx - Ax;
+    float dy = By - Ay;
+    float d2 = dx*dx + dy*dy;
+    if (d2 >= rS*rS) return;           // no colisión
+
+    float d = std::sqrt(std::max(d2, 1e-6f));
+    float nx = (d > 1e-6f) ? dx/d : 1.0f;
+    float ny = (d > 1e-6f) ? dy/d : 0.0f;
+
+    // Separación mínima (anti-ghost)
+    float pen = rS - d;
+    A->moveBy(-nx * 0.5f * pen, -ny * 0.5f * pen);
+    B->moveBy( nx * 0.5f * pen,  ny * 0.5f * pen);
+
+    // Aproxima el rebote: nueva dirección contraria a la normal
+    // (usamos setDirection de PlayerCreature / NPCreature)
+    if (auto pa = std::dynamic_pointer_cast<PlayerCreature>(A)) pa->setDirection(-nx, -ny);
+    if (auto na = std::dynamic_pointer_cast<NPCreature>(A))     na->setDirection(-nx, -ny);
+
+    if (auto pb = std::dynamic_pointer_cast<PlayerCreature>(B)) pb->setDirection( nx,  ny);
+    if (auto nb = std::dynamic_pointer_cast<NPCreature>(B))     nb->setDirection( nx,  ny);
+}
+
+
+
+
 
 string AquariumCreatureTypeToString(AquariumCreatureType t){
     switch(t){
@@ -9,6 +48,8 @@ string AquariumCreatureTypeToString(AquariumCreatureType t){
             return "BiggerFish";
         case AquariumCreatureType::NPCreature:
             return "BaseFish";
+        case AquariumCreatureType::PowerUp: 
+            return "PowerUp";
         default:
             return "UknownFish";
     }
@@ -26,14 +67,22 @@ void PlayerCreature::setDirection(float dx, float dy) {
 }
 
 void PlayerCreature::move() {
-    m_x += m_dx * m_speed;
-    m_y += m_dy * m_speed;
+    int effectiveSpeed = m_speed;
+    if (hasSpeedBoost()) effectiveSpeed = m_speed * 2; // simple speed boost
+    m_x += m_dx * effectiveSpeed;
+    m_y += m_dy * effectiveSpeed;
     this->bounce();
 }
 
 void PlayerCreature::reduceDamageDebounce() {
     if (m_damage_debounce > 0) {
         --m_damage_debounce;
+    }
+    if (m_speedBoostTimer > 0) {
+        --m_speedBoostTimer;
+        if (m_speedBoostTimer == 0) {
+            ofLogNotice() << "Speed boost expired" << std::endl;
+        }
     }
 }
 
@@ -75,8 +124,8 @@ void PlayerCreature::loseLife(int debounce) {
 // NPCreature Implementation
 NPCreature::NPCreature(float x, float y, int speed, std::shared_ptr<GameSprite> sprite)
 : Creature(x, y, speed, 22.f, 1, sprite) {
-    if (speed < 1) speed = 1;
-    if (speed > 4) speed = 4;
+    if (speed < 3) speed = 3;
+    if (speed > 6) speed = 6;
     m_speed = speed;
 
     m_dx = (rand() % 3 - 1); // -1, 0 o 1
@@ -103,17 +152,38 @@ void NPCreature::move() {
 
 void NPCreature::draw() const {
     ofLogVerbose() << "NPCreature at (" << m_x << ", " << m_y << ") with speed " << m_speed << std::endl;
-    ofSetColor(ofColor::white);
+    
+    
+    if (m_creatureType == AquariumCreatureType::PowerUp) {
+       
+        float pulse = 0.8f + 0.4f * sin(ofGetElapsedTimef() * 6.0f);  
+       
+        ofSetColor(ofColor::yellow, 150 * pulse);
+        ofDrawCircle(m_x + 40, m_y + 35, 45 * pulse);
+        
+        ofSetColor(ofColor::yellow, 255);
+    } else {
+        ofSetColor(ofColor::white);
+    }
+    
     if (m_sprite) {
         m_sprite->draw(m_x, m_y);
     }
+    
+    ofSetColor(ofColor::white); 
+}
+
+void NPCreature::setDirection(float dx, float dy) {
+    m_dx = dx;
+    m_dy = dy;
+    normalize(); // usa tu método de Creature para mantener velocidad consistente
 }
 
 
 BiggerFish::BiggerFish(float x, float y, int speed, std::shared_ptr<GameSprite> sprite)
 : NPCreature(x, y, speed, sprite) {
-   if (speed < 1) speed = 1;
-    if (speed > 3) speed = 3;  // más lento
+   if (speed < 2) speed = 2;
+    if (speed > 5) speed = 5;  // más lento
     m_speed = speed;
 
     m_dx = (rand() % 3 - 1);
@@ -158,6 +228,10 @@ std::shared_ptr<GameSprite> AquariumSpriteManager::GetSprite(AquariumCreatureTyp
             
         case AquariumCreatureType::NPCreature:
             return std::make_shared<GameSprite>(*this->m_npc_fish);
+            
+        case AquariumCreatureType::PowerUp:
+            return std::make_shared<GameSprite>("base-fish.png", 80, 80); 
+            
         default:
             return nullptr;
     }
@@ -183,11 +257,63 @@ void Aquarium::addAquariumLevel(std::shared_ptr<AquariumLevel> level){
 }
 
 void Aquarium::update() {
+    // 1) mover (cada Creature ya hace bounce() interno)
     for (auto& creature : m_creatures) {
         creature->move();
+        float x = creature->getX();
+        float y = creature->getY();
+        float r = creature->getCollisionRadius();
+
+        // Rebote con los límites
+        if (x - r < 0) {
+            x = r;
+            creature->moveBy(1, 0);
+        }
+        if (x + r > m_width) {
+            x = m_width - r;
+            creature->moveBy(-1, 0);
+        }
+        if (y - r < 0) {
+            y = r;
+            creature->moveBy(0, 1);
+        }
+        if (y + r > m_height) {
+            y = m_height - r;
+            creature->moveBy(0, -1);
+        }
+        // --- Rebote entre NPCs (evitar ghost) ---
+       for (size_t i = 0; i < m_creatures.size(); ++i) {
+       for (size_t j = i + 1; j < m_creatures.size(); ++j) {
+
+        auto A = m_creatures[i];
+        auto B = m_creatures[j];
+
+        // solo NPC vs NPC (no el player)
+        bool AisNPC = (std::dynamic_pointer_cast<NPCreature>(A) != nullptr);
+        bool BisNPC = (std::dynamic_pointer_cast<NPCreature>(B) != nullptr);
+        if (!(AisNPC && BisNPC)) continue;
+
+        // colisionan
+        float dx = B->getX() - A->getX();
+        float dy = B->getY() - A->getY();
+        float r  = A->getCollisionRadius() + B->getCollisionRadius();
+        if (dx*dx + dy*dy <= r*r) {
+            // usa tu helper global
+            resolveBounce(A, B);
+        }
     }
+    
+    // Spawn power-up every 20s
+    m_powerUpTimer++;
+    if (m_powerUpTimer > 1200) { 
+        this->SpawnCreature(AquariumCreatureType::PowerUp);
+        m_powerUpTimer = 0;
+        ofLogNotice() << "Power-up spawned!" << std::endl;
+    }
+    
     this->Repopulate();
 }
+
 
 void Aquarium::draw() const {
     for (const auto& creature : m_creatures) {
@@ -238,6 +364,13 @@ void Aquarium::SpawnCreature(AquariumCreatureType type) {
                 x, y, speed, this->m_sprite_manager->GetSprite(AquariumCreatureType::BiggerFish)
             ));
             break;
+        case AquariumCreatureType::PowerUp: {
+            auto powerUp = std::make_shared<NPCreature>(x, y, 1, this->m_sprite_manager->GetSprite(AquariumCreatureType::PowerUp));
+            powerUp->SetType(AquariumCreatureType::PowerUp);
+            this->addCreature(powerUp);
+            ofLogNotice() << "Spawned PowerUp at (" << x << ", " << y << ")" << std::endl;
+            break;
+        }
         default:
             ofLogError() << "Unknown creature type to spawn!";
             break;
@@ -279,74 +412,84 @@ void Aquarium::Repopulate() {
 
 
 // Aquarium collision detection
-std::shared_ptr<GameEvent> DetectAquariumCollisions(std::shared_ptr<Aquarium> aquarium, std::shared_ptr<PlayerCreature> player) {
+std::shared_ptr<GameEvent>
+DetectAquariumCollisions(std::shared_ptr<Aquarium> aquarium,
+                         std::shared_ptr<PlayerCreature> player) {
     if (!aquarium || !player) return nullptr;
-    
-   for (int i = 0; i < aquarium->getCreatureCount(); ++i) {
+
+    for (int i = 0; i < aquarium->getCreatureCount(); ++i) {
         auto npc = aquarium->getCreatureAt(i);
-        if (npc && checkCollision(player, npc)) {
+        if (!npc || npc.get() == player.get()) continue;
+
+        float rP = player->getCollisionRadius();
+        float rN = npc->getCollisionRadius();
+        float dx = player->getX() - npc->getX();
+        float dy = player->getY() - npc->getY();
+        if (dx*dx + dy*dy <= (rP + rN)*(rP + rN)) {
             return std::make_shared<GameEvent>(GameEventType::COLLISION, player, npc);
         }
     }
     return nullptr;
 }
+
   
 
 //  Imlementation of the AquariumScene
 
 void AquariumGameScene::Update(){
-    if (!m_aquarium || !m_player) return;
+if (!updateControl.tick()) {
+    return;
+}
+// no hay reset(); tick() maneja el conteo
 
-    // 1) mover player
-    m_player->update();
 
-    // 2) mover NPCs / repoblar / niveles
-    m_aquarium->update();
-
-    // 3) detectar colisiones
+    this->m_player->update();
+    this->m_aquarium->update();
+    
+    // detectar colisiones
     auto event = DetectAquariumCollisions(m_aquarium, m_player);
     if (event && event->isCollisionEvent() && event->creatureA && event->creatureB) {
         auto A = event->creatureA; // player
         auto B = event->creatureB; // npc
 
-        // normal del impacto
-        float nx = A->getX() - B->getX();
-        float ny = A->getY() - B->getY();
-        float len = std::sqrt(nx*nx + ny*ny);
-        if (len > 0.0001f) { nx /= len; ny /= len; }
+        // First: check if B is a power-up
+        if (auto npcB = std::dynamic_pointer_cast<NPCreature>(B)) {
+            if (npcB->GetType() == AquariumCreatureType::PowerUp) {
+                ofLogNotice() << "Player collected a power-up! Applying speed boost." << std::endl;
+                m_player->applySpeedBoost();
+                m_aquarium->removeCreature(B);
+                return;
+            }
+        }
 
-        const float pushWeak = 8.0f;  // rebote cuando eres débil
-        const float pushEat  = 4.0f;  // empujón suave al comer
-
-        //  balance: solo come si es estrictamente mayor
         if (m_player->getPower() < B->getValue()) {
-            // más débil → rebote en ambos + vida
-            A->moveBy( nx * pushWeak,  ny * pushWeak);
-            B->moveBy(-nx * pushWeak, -ny * pushWeak);
-            A->bounce();
-            B->bounce();
-
+            // Rebote real
+            resolveBounce(A, B);
             m_player->loseLife(3 * 60);
             if (m_player->getLives() <= 0) {
                 m_lastEvent = std::make_shared<GameEvent>(GameEventType::GAME_OVER, m_player, nullptr);
                 return;
             }
         } else {
-            // come → empujón solo al player, luego remove
-            A->moveBy(nx * pushEat, ny * pushEat);
-            A->bounce();
-
+            // Come
             m_aquarium->removeCreature(B);
             m_player->addToScore(1, B->getValue());
 
+            if (biteSound && biteSound->isLoaded()) {
+                biteSound->play();
+            } else {
+                ofLogError("Sound") << "Bite sound not loaded!" << std::endl;
+            }
+            
             // subir poder más lento (opcional: 50 en vez de 25)
             if (m_player->getScore() % 50 == 0) {
                 m_player->increasePower(1);
                 ofLogNotice() << "Player power increased to " << m_player->getPower() << "!";
             }
         }
-    }
 }
+}
+
 
 
 
@@ -363,9 +506,17 @@ void AquariumGameScene::paintAquariumHUD(){
     ofDrawBitmapString("Score: " + std::to_string(this->m_player->getScore()), panelWidth, 20);
     ofDrawBitmapString("Power: " + std::to_string(this->m_player->getPower()), panelWidth, 30);
     ofDrawBitmapString("Lives: " + std::to_string(this->m_player->getLives()), panelWidth, 40);
+    
+    // Show speed boost status
+    if (this->m_player->hasSpeedBoost()) {
+        ofSetColor(ofColor::yellow);
+        ofDrawBitmapString("SPEED BOOST ACTIVE!", panelWidth, 50);
+        ofSetColor(ofColor::white);
+    }
+    
     for (int i = 0; i < this->m_player->getLives(); ++i) {
         ofSetColor(ofColor::red);
-        ofDrawCircle(panelWidth + i * 20, 50, 5);
+        ofDrawCircle(panelWidth + i * 20, 65, 5);
     }
     ofSetColor(ofColor::white); // Reset color to white for other drawings
 }

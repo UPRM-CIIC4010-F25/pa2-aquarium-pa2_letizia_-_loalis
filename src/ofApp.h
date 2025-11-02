@@ -27,7 +27,7 @@ class ofApp : public ofBaseApp{
 	
 		
 		char moveDirection;
-		int DEFAULT_SPEED = 5;
+		int DEFAULT_SPEED = 7;
 
 
 		AwaitFrames acuariumUpdate{5};
@@ -41,5 +41,13 @@ class ofApp : public ofBaseApp{
 		std::unique_ptr<GameSceneManager> gameManager;
 		std::shared_ptr<AquariumSpriteManager>spriteManager;
 
-		ofSoundPlayer backgroundMusic;		
+		ofSoundPlayer backgroundMusic;	
+		ofSoundPlayer biteSound;   //  sonido de mordida
+           int score = 0;    //  puntuación
+		   
+
+
+		
+
+	
 };

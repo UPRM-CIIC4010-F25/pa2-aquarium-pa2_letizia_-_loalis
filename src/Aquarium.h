@@ -9,7 +9,8 @@
 
 enum class AquariumCreatureType {
     NPCreature,
-    BiggerFish
+    BiggerFish,
+    PowerUp
 };
 
 string AquariumCreatureTypeToString(AquariumCreatureType t);
@@ -68,19 +69,26 @@ public:
     void increasePower(int value) { m_power += value; }
     void reduceDamageDebounce();
     
+   
+    void applySpeedBoost() { m_speedBoostTimer = 300; } 
+    bool hasSpeedBoost() const { return m_speedBoostTimer > 0; }
+    
 private:
     int m_score = 0;
     int m_lives = 3;
     int m_power = 1; // mark current power lvl
     int m_damage_debounce = 0; // frames to wait after eating
+    int m_speedBoostTimer = 0;
 };
 
 class NPCreature : public Creature {
 public:
     NPCreature(float x, float y, int speed, std::shared_ptr<GameSprite> sprite);
     AquariumCreatureType GetType() {return this->m_creatureType;}
+    void SetType(AquariumCreatureType type) {m_creatureType = type;}
     void move() override;
     void draw() const override;
+    void setDirection(float dx, float dy);
 protected:
     AquariumCreatureType m_creatureType;
 
@@ -124,6 +132,11 @@ public:
     int getWidth() const { return m_width; }
     int getHeight() const { return m_height; }
 
+    //  Nuevos setters para conectar sonido y puntuación
+    void setBiteSound(ofSoundPlayer* s) { biteSound = s; }
+    void setScorePtr(int* p) { scorePtr = p; }
+
+
 
 private:
     int m_maxPopulation = 0;
@@ -134,6 +147,10 @@ private:
     std::vector<std::shared_ptr<Creature>> m_next_creatures;
     std::vector<std::shared_ptr<AquariumLevel>> m_aquariumlevels;
     std::shared_ptr<AquariumSpriteManager> m_sprite_manager;
+    int m_powerUpTimer = 0;
+    
+    ofSoundPlayer* biteSound = nullptr;  // sonido del "bite"
+    int* scorePtr = nullptr;             // puntero al score global
 };
 
 
@@ -143,7 +160,13 @@ std::shared_ptr<GameEvent> DetectAquariumCollisions(std::shared_ptr<Aquarium> aq
 class AquariumGameScene : public GameScene {
     public:
         AquariumGameScene(std::shared_ptr<PlayerCreature> player, std::shared_ptr<Aquarium> aquarium, string name)
-        : m_player(std::move(player)) , m_aquarium(std::move(aquarium)), m_name(name){}
+        : m_player(std::move(player)) , m_aquarium(std::move(aquarium)), m_name(name)
+    {
+        // Cargar sonido de mordida
+        biteSound.load("sound/Minecraft-Eating.wav");
+        biteSound.setMultiPlay(true);
+        biteSound.setVolume(2.0f);
+    }
         std::shared_ptr<GameEvent> GetLastEvent(){return m_lastEvent;}
         void SetLastEvent(std::shared_ptr<GameEvent> event){this->m_lastEvent = event;}
         std::shared_ptr<PlayerCreature> GetPlayer(){return this->m_player;}
@@ -158,6 +181,8 @@ class AquariumGameScene : public GameScene {
         std::shared_ptr<GameEvent> m_lastEvent;
         string m_name;
         AwaitFrames updateControl{5};
+
+        ofSoundPlayer biteSound;
 };
 
 

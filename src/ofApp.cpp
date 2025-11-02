@@ -37,6 +37,8 @@ void ofApp::setup(){
     myAquarium->addAquariumLevel(std::make_shared<Level_1>(1, 15));
     myAquarium->addAquariumLevel(std::make_shared<Level_2>(2, 20));
     myAquarium->Repopulate(); // initial population
+    myAquarium->setBiteSound(&biteSound); // connect bite sound
+
 
     // now that we are mostly set, lets pass the player and the aquarium downstream
     gameManager->AddScene(std::make_shared<AquariumGameScene>(
@@ -60,8 +62,13 @@ void ofApp::setup(){
     backgroundMusic.load("sound/Yoshi_theme.wav");
     backgroundMusic.setLoop(true);
     backgroundMusic.setVolume(0.6f);
-    backgroundMusic.play();
+    backgroundMusic.play(); 
 
+    biteSound.load("sound/Minecraft-eating.wav");
+    biteSound.setVolume(1.0f);
+    biteSound.setMultiPlay(true); // Allow overlapping bites
+
+    
 
 }
 
@@ -82,6 +89,12 @@ void ofApp::update(){
     }
 
     gameManager->UpdateActiveScene();
+
+     
+        (void)ofGetLastFrameTime();     // tiempo entre frames
+        acuariumUpdate.tick();               // actualizar el control de frames
+    
+
     
 
 
@@ -91,6 +104,12 @@ void ofApp::update(){
 void ofApp::draw(){
     backgroundImage.draw(0, 0);
     gameManager->DrawActiveScene();
+    
+    ofSetColor(255);
+    ofDrawBitmapString("Score: " + ofToString(score), 15, 20);
+   
+
+
 }
 
 //--------------------------------------------------------------
